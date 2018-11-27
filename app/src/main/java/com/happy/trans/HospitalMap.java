@@ -44,6 +44,7 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
@@ -74,14 +75,12 @@ public class HospitalMap extends AppCompatActivity
     private GoogleApiClient mGoogleApiClient = null;
     private GoogleMap mGoogleMap = null;
     private Marker currentMarker = null;
-    String[][] TABLE;
-    String[] TABLErow;
 
     private static final String TAG = "googlemap_example";
     private static final int GPS_ENABLE_REQUEST_CODE = 2001;
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 2002;
-    private static final int UPDATE_INTERVAL_MS = 1000;
-    private static final int FASTEST_UPDATE_INTERVAL_MS = 500;
+    private static final int UPDATE_INTERVAL_MS = 1000;  // 1초
+    private static final int FASTEST_UPDATE_INTERVAL_MS = 500; // 0.5초
 
     private AppCompatActivity mActivity;
     boolean askPermissionOnceAgain = false;
@@ -94,6 +93,9 @@ public class HospitalMap extends AppCompatActivity
 
     TextView tv_hospital_map;
 
+    final HospitalList HOS = new HospitalList();
+    final HospitalSearchedData detailedHOS = new HospitalSearchedData();
+
 
     LocationRequest locationRequest = new LocationRequest()
             .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
@@ -105,12 +107,12 @@ public class HospitalMap extends AppCompatActivity
         super.onCreate(savedInstanceState);
 
 
+//추가1
         StrictMode.enableDefaults();
 
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.hospital_map);
-
         mActivity = this;
 
 
@@ -127,55 +129,6 @@ public class HospitalMap extends AppCompatActivity
         tv_hospital_map= (TextView)findViewById(R.id.tv_hospitalmap);
         tv_hospital_map.setVisibility(View.GONE);
 
-        int RowALL = 0;
-        int ColALL = 0;
-        String[][] HosArray = new String[RowALL][ColALL];
-        StringBuilder sb = new StringBuilder();
-
-        InputStream is = null;
-        try {
-            is = getBaseContext().getResources().getAssets().open("hosexcelfile.xls");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        Workbook wb = null;
-
-        try {
-            wb = Workbook.getWorkbook(is);
-        } catch (IOException e1) {
-            e1.printStackTrace();
-        } catch (BiffException e1) {
-            e1.printStackTrace();
-        }
-
-        if (wb != null) {
-            Sheet sheet = wb.getSheet(0);
-            if (sheet != null) {
-                int colTotal = sheet.getColumns();
-                int rowIndexStart = 1;
-                int rowTotal = sheet.getColumn(colTotal - 1).length;
-                RowALL = rowTotal;
-                ColALL = colTotal;
-
-                for (int row = rowIndexStart; row < rowTotal; row++) {
-
-                    for (int col = 0; col < colTotal; col++) {
-                        String contents = sheet.getCell(col, row).getContents();
-                        sb.append(contents + "##");
-
-                    }
-                    sb.append("$");
-                }
-            }
-        }
-        TABLE = new String[RowALL+1][ColALL+1];//들어갈 TABLE
-        String sbString = sb.toString();//분리해야할 문자열
-        TABLErow = sbString.split("[$]");
-        for(int i = 0; i< TABLErow.length; i++){
-            TABLE[i] = TABLErow[i].split("##");
-        }
-
     }
 
 
@@ -184,6 +137,7 @@ public class HospitalMap extends AppCompatActivity
     public void onResume() {
 
         super.onResume();
+        // setUpMapIfNeeded();
 
         if (mGoogleApiClient.isConnected()) {
 
@@ -191,6 +145,7 @@ public class HospitalMap extends AppCompatActivity
         }
 
 
+        //앱 정보에서 퍼미션을 허가했는지를 다시 검사해봐야 한다.
         if (askPermissionOnceAgain) {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -216,7 +171,6 @@ public class HospitalMap extends AppCompatActivity
                 return;
             }
 
-
             LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, locationRequest, this);
             mRequestingLocationUpdates = true;
 
@@ -241,9 +195,7 @@ public class HospitalMap extends AppCompatActivity
 
         mGoogleMap = googleMap;
 
-
         setDefaultLocation();
-
         mGoogleMap.getUiSettings().setMyLocationButtonEnabled(true);
         mGoogleMap.animateCamera(CameraUpdateFactory.zoomTo(15));
         mGoogleMap.setOnMyLocationButtonClickListener(new GoogleMap.OnMyLocationButtonClickListener(){
@@ -260,7 +212,6 @@ public class HospitalMap extends AppCompatActivity
             @Override
             public void onMapClick(LatLng latLng) {
                 tv_hospital_map.setVisibility(View.GONE);
-
             }
         });
 
@@ -316,58 +267,23 @@ public class HospitalMap extends AppCompatActivity
 
                 tv_hospital_map.setVisibility(View.VISIBLE);
                 tv_hospital_map.setMovementMethod(new ScrollingMovementMethod());
-                for(int j = 1;j<TABLErow.length;j++) {
-                    if(marker.getTitle().equalsIgnoreCase(TABLE[j][0])) {
-                        String hostell = TABLE[j][3];
-                        String hossub = TABLE[j][4];
-                        String hosmon = TABLE[j][5];
-                        String hostue = TABLE[j][6];
-                        String hoswed = TABLE[j][7];
-                        String hosthu = TABLE[j][8];
-                        String hosfri = TABLE[j][9];
-                        String hossat = TABLE[j][10];
-                        String hossun = TABLE[j][11];
-                        String hosred = TABLE[j][12];
-                        String result="[ 병원 상세 정보 ]\n\n" +
-                                "- 전화번호 : " + hostell + "\n" +
-                                "- 진료과목 : " + hossub +"\n\n"+
-                                "- 영업시간\n"+
-                                "    월요일 : " + hosmon + "\n" +
-                                "    화요일 : " + hostue + "\n" +
-                                "    수요일 : " + hoswed + "\n" +
-                                "    목요일 : " + hosthu + "\n" +
-                                "    금요일 : " + hosfri + "\n" +
-                                "    토요일 : " + hossat + "\n" +
-                                "    일요일 : " + hossun + "\n" +
-                                "    공휴일 : " + hosred + "\n" ;
-
-                        Translation.NaverTranslateTask asyn = new Translation.NaverTranslateTask();
-                        asyn.result_view=tv_hospital_map;
-                        asyn.targetLang=target_lang;
-                        asyn.execute(result);
-                    }
-
+                String result = null;
+                try {
+                    result = detailedHOS.HosInfo(marker.getSnippet());
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
+                Translation.NaverTranslateTask asyn = new Translation.NaverTranslateTask();
+                asyn.result_view=tv_hospital_map;
+                asyn.clientId="7suMEiClPpJC5VZU38ri";
+                asyn.clientSecret="OT6M8kt7Rt";
+                asyn.targetLang=target_lang;
+                asyn.execute(result);
                 return false;
             }
 
         });
 
-
-
-        for(int i=1;i<TABLErow.length;i++){
-
-            double mHoslat = Double.parseDouble(TABLE[i][1]);
-            double mHoslon = Double.parseDouble(TABLE[i][2]);
-
-            MarkerOptions HOSmarker = new MarkerOptions();
-            HOSmarker.position(new LatLng(mHoslat, mHoslon))
-                    .title(TABLE[i][0])
-                    .snippet("Tel : "+TABLE[i][3])
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
-            mGoogleMap.addMarker(HOSmarker);
-
-        }
 
     }
 
@@ -375,30 +291,50 @@ public class HospitalMap extends AppCompatActivity
     @Override
     public void onLocationChanged(Location location) {
         currentPosition
-                = new LatLng( location.getLatitude(), location.getLongitude());
-
+                = new LatLng(location.getLatitude(), location.getLongitude());
 
         String markerTitle = getCurrentAddress(currentPosition);
         String markerSnippet = "위도:" + String.valueOf(location.getLatitude())
                 + " 경도:" + String.valueOf(location.getLongitude());
-
         setCurrentLocation(location, markerTitle, markerSnippet);
 
         mCurrentLocation = location;
 
-    }
+        mCurrentAddress = getAddress(HospitalMap.this, location.getLatitude(), location.getLongitude());
+ 
+        String Addr[] = mCurrentAddress.split(" ");
 
+
+        try {
+            HOS.HosLocations(Addr[1], Addr[2]);//전체 String
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        if (true) {
+            ArrayList<HospitalData> dataList = HOS.HOSPITAL;
+            int dataListSize = dataList.size();
+            for (int i = 0; i < dataListSize; i++) {
+                MarkerOptions marker = new MarkerOptions();
+                marker.position(new LatLng(Double.parseDouble(dataList.get(i).hoslat1), Double.parseDouble(dataList.get(i).hoslon1)))
+                        .title(dataList.get(i).hosname1)
+                        .snippet(dataList.get(i).hoshpid1)
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
+                mGoogleMap.addMarker(marker).showInfoWindow();
+            }
+
+
+        }
+    }
     public static String getAddress(Context mContext, double lat, double lng) {
         String nowAddress ="현재 위치를 확인 할 수 없습니다.";
         Geocoder geocoder = new Geocoder(mContext, Locale.KOREA);
         List <Address> address;
         try {
             if (geocoder != null) {
-
                 address = geocoder.getFromLocation(lat, lng, 1);
 
                 if (address != null && address.size() > 0) {
-
                     String currentLocationAddress = address.get(0).getAddressLine(0).toString();
                     nowAddress  = currentLocationAddress;
 
@@ -428,12 +364,10 @@ public class HospitalMap extends AppCompatActivity
     protected void onStop() {
 
         if (mRequestingLocationUpdates) {
-
             stopLocationUpdates();
         }
 
         if ( mGoogleApiClient.isConnected()) {
-
             mGoogleApiClient.disconnect();
         }
 
@@ -556,6 +490,8 @@ public class HospitalMap extends AppCompatActivity
 
         if ( mMoveMapByAPI ) {
 
+                    + location.getLatitude() + " " + location.getLongitude() ) ;
+
             CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
             mGoogleMap.moveCamera(cameraUpdate);
         }
@@ -568,9 +504,11 @@ public class HospitalMap extends AppCompatActivity
         mMoveMapByUser = false;
 
 
+
         LatLng DEFAULT_LOCATION = new LatLng(37.56, 126.97);
         String markerTitle = "위치정보 가져올 수 없음";
         String markerSnippet = "위치 퍼미션과 GPS 활성 여부 확인하세요";
+
 
 
         if (currentMarker != null) currentMarker.remove();
@@ -608,7 +546,6 @@ public class HospitalMap extends AppCompatActivity
         } else if (hasFineLocationPermission == PackageManager.PERMISSION_GRANTED) {
 
 
-
             if ( mGoogleApiClient.isConnected() == false) {
 
                 mGoogleApiClient.connect();
@@ -630,8 +567,6 @@ public class HospitalMap extends AppCompatActivity
 
 
                 if ( mGoogleApiClient.isConnected() == false) {
-
-                    Log.d(TAG, "onRequestPermissionsResult : mGoogleApiClient connect");
                     mGoogleApiClient.connect();
                 }
 
@@ -693,9 +628,6 @@ public class HospitalMap extends AppCompatActivity
         });
         builder.create().show();
     }
-
-
-    //여기부터는 GPS 활성화를 위한 메소드들
     private void showDialogForLocationServiceSetting() {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(HospitalMap.this);
@@ -728,13 +660,11 @@ public class HospitalMap extends AppCompatActivity
         switch (requestCode) {
 
             case GPS_ENABLE_REQUEST_CODE:
-
                 if (checkLocationServicesStatus()) {
                     if (checkLocationServicesStatus()) {
 
-
-
                         if ( mGoogleApiClient.isConnected() == false ) {
+
                             mGoogleApiClient.connect();
                         }
                         return;
